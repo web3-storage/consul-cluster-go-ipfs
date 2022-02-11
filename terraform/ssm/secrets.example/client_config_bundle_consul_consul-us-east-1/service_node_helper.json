@@ -1,0 +1,12 @@
+{
+    "service": {
+        "name": "ipfs-node-helper",
+        "port": 5005,
+        "token":"",
+        "check": {
+            "id": "node-helper-check",
+            "http": "http://localhost:5005/health",
+            "interval": "15s"
+        }
+    }
+}

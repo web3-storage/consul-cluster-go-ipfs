@@ -1,0 +1,342 @@
+#!/bin/bash
+# This script is used to configure and run go-ipfs on an AWS server.
+
+set -e
+
+readonly IPFS_CONFIG_FILE="ipfs_default_config.json"
+readonly SYSTEMD_CONFIG_PATH="/etc/systemd/system/ipfs.service"
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_NAME="$(basename "$0")"
+
+readonly MAX_RETRIES=30
+readonly SLEEP_BETWEEN_RETRIES_SEC=10
+
+function print_usage {
+  echo
+  echo "Usage: run-ipfs [OPTIONS]"
+  echo
+  echo "This script is used to configure and run go-ipfs on an AWS server."
+  echo
+  echo "Options:"
+  echo
+  echo -e "  --config-dir\t\tThe path to the ipfs config folder. Optional. Default is the absolute path of '../data', relative to this script."
+  echo -e "  --user\t\tThe user to run ipfs as. Optional. Default is to use the owner of --config-dir."
+  echo -e "  --skip-ipfs-config\tIf this flag is set, don't generate an ipfs configuration file. Optional. Default is false."
+  echo
+  echo
+  echo "Example:"
+  echo
+  echo "  run-ipfs --config-dir /custom/path/to/ipfs/config"
+}
+
+function log {
+  local -r level="$1"
+  local -r message="$2"
+  local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  >&2 echo -e "${timestamp} [${level}] [$SCRIPT_NAME] ${message}"
+}
+
+function log_info {
+  local -r message="$1"
+  log "INFO" "$message"
+}
+
+function log_warn {
+  local -r message="$1"
+  log "WARN" "$message"
+}
+
+function log_error {
+  local -r message="$1"
+  log "ERROR" "$message"
+}
+
+function assert_not_empty {
+  local -r arg_name="$1"
+  local -r arg_value="$2"
+
+  if [[ -z "$arg_value" ]]; then
+    log_error "The value for '$arg_name' cannot be empty"
+    print_usage
+    exit 1
+  fi
+}
+
+function assert_is_installed {
+  local -r name="$1"
+
+  if [[ ! $(command -v ${name}) ]]; then
+    log_error "The binary '$name' is required by this script but is not installed or in the system's PATH."
+    exit 1
+  fi
+}
+
+function generate_ipfs_config {
+  local -r config_dir="${1}"
+  local -r user="${2}"
+  local -r config_path="$config_dir/$IPFS_CONFIG_FILE"
+
+  local -r ipfs_http_api_listen_multiaddress="/ip4/127.0.0.1/tcp/5001"
+  local -r ipfs_http_gateway_listen_multiaddress="/ip4/127.0.0.1/tcp/8080"
+  local -r ipfs_storage_max="10GB"
+  local -r ipfs_peer_id=""
+  local -r ipfs_private_key=""
+
+  log_info "Creating default ipfs configuration"
+  local default_config_json
+  default_config_json=$(cat <<EOF
+{
+  "API": {
+    "HTTPHeaders": null
+  },
+  "Addresses": {
+    "API": "$ipfs_http_api_listen_multiaddress",
+    "Gateway": "$ipfs_http_gateway_listen_multiaddress",
+    "Swarm": [
+      "/ip4/0.0.0.0/tcp/4001",
+      "/ip6/::/tcp/4001"
+    ]
+  },
+  "Bootstrap": [
+    "/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+    "/ip4/104.236.176.52/tcp/4001/ipfs/QmSoLnSGccFuZQJzRadHn95W2CrSFmZuTdDWP8HXaHca9z",
+    "/ip4/104.236.179.241/tcp/4001/ipfs/QmSoLPppuBtQSGwKDZT2M73ULpjvfd3aZ6ha4oFGL1KrGM",
+    "/ip4/162.243.248.213/tcp/4001/ipfs/QmSoLueR4xBeUbY9WZ9xGUUxunbKWcrNFTDAadQJmocnWm",
+    "/ip4/128.199.219.111/tcp/4001/ipfs/QmSoLSafTMBsPKadTEgaXctDQVcqN88CNLHXMkTNwMKPnu",
+    "/ip4/104.236.76.40/tcp/4001/ipfs/QmSoLV4Bbm51jM9C4gDYZQ9Cy3U6aXMJDAbzgu2fzaDs64",
+    "/ip4/178.62.158.247/tcp/4001/ipfs/QmSoLer265NRgSp2LA3dPaeykiS1J6DifTC88f5uVQKNAd",
+    "/ip4/178.62.61.185/tcp/4001/ipfs/QmSoLMeWqB7YGVLJN3pNLQpmmEk35v6wYtsMGLzSr5QBU3",
+    "/ip4/104.236.151.122/tcp/4001/ipfs/QmSoLju6m7xTh3DuokvT3886QRYqxAzb1kShaanJgW36yx",
+    "/ip6/2604:a880:1:20::1f9:9001/tcp/4001/ipfs/QmSoLnSGccFuZQJzRadHn95W2CrSFmZuTdDWP8HXaHca9z",
+    "/ip6/2604:a880:1:20::203:d001/tcp/4001/ipfs/QmSoLPppuBtQSGwKDZT2M73ULpjvfd3aZ6ha4oFGL1KrGM",
+    "/ip6/2604:a880:0:1010::23:d001/tcp/4001/ipfs/QmSoLueR4xBeUbY9WZ9xGUUxunbKWcrNFTDAadQJmocnWm",
+    "/ip6/2400:6180:0:d0::151:6001/tcp/4001/ipfs/QmSoLSafTMBsPKadTEgaXctDQVcqN88CNLHXMkTNwMKPnu",
+    "/ip6/2604:a880:800:10::4a:5001/tcp/4001/ipfs/QmSoLV4Bbm51jM9C4gDYZQ9Cy3U6aXMJDAbzgu2fzaDs64",
+    "/ip6/2a03:b0c0:0:1010::23:1001/tcp/4001/ipfs/QmSoLer265NRgSp2LA3dPaeykiS1J6DifTC88f5uVQKNAd",
+    "/ip6/2a03:b0c0:1:d0::e7:1/tcp/4001/ipfs/QmSoLMeWqB7YGVLJN3pNLQpmmEk35v6wYtsMGLzSr5QBU3",
+    "/ip6/2604:a880:1:20::1d9:6001/tcp/4001/ipfs/QmSoLju6m7xTh3DuokvT3886QRYqxAzb1kShaanJgW36yx"
+  ],
+  "Datastore": {
+    "BloomFilterSize": 0,
+    "GCPeriod": "1h",
+    "HashOnRead": false,
+    "Spec": {
+      "mounts": [
+        {
+          "child": {
+            "path": "blocks",
+            "shardFunc": "/repo/flatfs/shard/v1/next-to-last/2",
+            "sync": true,
+            "type": "flatfs"
+          },
+          "mountpoint": "/blocks",
+          "prefix": "flatfs.datastore",
+          "type": "measure"
+        },
+        {
+          "child": {
+            "compression": "none",
+            "path": "datastore",
+            "type": "levelds"
+          },
+          "mountpoint": "/",
+          "prefix": "leveldb.datastore",
+          "type": "measure"
+        }
+      ],
+      "type": "mount"
+    },
+    "StorageGCWatermark": 90,
+    "StorageMax": "$ipfs_storage_max"
+  },
+  "Discovery": {
+    "MDNS": {
+      "Enabled": true,
+      "Interval": 10
+    }
+  },
+  "Experimental": {
+    "FilestoreEnabled": false,
+    "Libp2pStreamMounting": false,
+    "ShardingEnabled": false
+  },
+  "Gateway": {
+    "HTTPHeaders": {
+      "Access-Control-Allow-Headers": [
+        "X-Requested-With",
+        "Range"
+      ],
+      "Access-Control-Allow-Methods": [
+        "GET"
+      ],
+      "Access-Control-Allow-Origin": [
+        "*"
+      ]
+    },
+    "PathPrefixes": [],
+    "RootRedirect": "",
+    "Writable": false
+  },
+  "Identity": {
+    "PeerID": "$ipfs_peer_id",
+    "PrivKey": "$ipfs_private_key"
+  },
+  "Ipns": {
+    "RecordLifetime": "",
+    "RepublishPeriod": "",
+    "ResolveCacheSize": 128
+  },
+  "Mounts": {
+    "FuseAllowOther": false,
+    "IPFS": "/ipfs",
+    "IPNS": "/ipns"
+  },
+  "Reprovider": {
+    "Interval": "12h"
+  },
+  "SupernodeRouting": {
+    "Servers": null
+  },
+  "Swarm": {
+    "AddrFilters": null,
+    "DisableBandwidthMetrics": false,
+    "DisableNatPortMap": false
+  },
+  "Tour": {
+    "Last": ""
+  }
+}
+EOF
+)
+  log_info "Installing ipfs config file in $config_path"
+  echo "$default_config_json" | jq '.' > "$config_path"
+  chown "$user:$user" "$config_path"
+}
+
+function generate_systemd_config {
+  local -r config_dir="${1}"
+  local -r user="${2}"
+  local -r systemd_config_path="$3"
+
+  log_info "Creating systemd config file to run ipfs in $systemd_config_path"
+
+  local -r unit_config=$(cat <<EOF
+[Unit]
+Description=IPFS daemon
+After=network.target
+
+EOF
+)
+
+  local -r service_config=$(cat <<EOF
+[Service]
+Environment="IPFS_PATH=$config_dir"
+ExecStart=/usr/local/bin/ipfs daemon --migrate
+Restart=on-failure
+User=$user
+
+EOF
+)
+
+  local -r install_config=$(cat <<EOF
+[Install]
+WantedBy=multi-user.target
+EOF
+)
+
+  echo -e "$unit_config" > "$systemd_config_path"
+  echo -e "$service_config" >> "$systemd_config_path"
+  echo -e "$install_config" >> "$systemd_config_path"
+}
+
+function init_ipfs {
+  local -r config_dir="${1}"
+  local -r user="${2}"
+  local -r ipfs_http_api_listen_multiaddress="/ip4/0.0.0.0/tcp/5001"
+  local -r ipfs_http_gateway_listen_multiaddress="/ip4/0.0.0.0/tcp/8080"
+
+  log_info "Running ipfs init..."
+  export IPFS_PATH=$config_dir
+  ipfs init --empty-repo --profile server
+  ipfs config Addresses.API $ipfs_http_api_listen_multiaddress
+  ipfs config Addresses.Gateway $ipfs_http_gateway_listen_multiaddress
+  chown -R "$user:$user" "$config_dir"
+}
+
+function start_ipfs {
+  log_info "Reloading systemd config and starting ipfs"
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable ipfs.service
+  sudo systemctl restart ipfs.service
+}
+
+# Based on: http://unix.stackexchange.com/a/7732/215969
+function get_owner_of_path {
+  local -r path="$1"
+  ls -ld "$path" | awk '{print $3}'
+}
+
+function run {
+  local config_dir=""
+  local user=""
+  local skip_ipfs_config="false"
+
+  while [[ $# -gt 0 ]]; do
+    local key="$1"
+
+    case "$key" in
+      --config-dir)
+        assert_not_empty "$key" "$2"
+        config_dir="$2"
+        shift
+        ;;
+      --user)
+        assert_not_empty "$key" "$2"
+        user="$2"
+        shift
+        ;;
+      --skip-ipfs-config)
+        skip_ipfs_config="true"
+        ;;
+      --help)
+        print_usage
+        exit
+        ;;
+      *)
+        log_error "Unrecognized argument: $key"
+        print_usage
+        exit 1
+        ;;
+    esac
+
+    shift
+  done
+
+  assert_is_installed "systemctl"
+  assert_is_installed "aws"
+  assert_is_installed "curl"
+  assert_is_installed "jq"
+  assert_is_installed "ipfs"
+
+  if [[ -z "$config_dir" ]]; then
+    config_dir=$(cd "$SCRIPT_DIR/../data" && pwd)
+  fi
+
+  if [[ -z "$user" ]]; then
+    user=$(get_owner_of_path "$config_dir")
+  fi
+
+  if [[ "$skip_ipfs_config" == "true" ]]; then
+    log_info "The --skip-ipfs-config flag is set, so will not generate a default ipfs config file."
+  else
+    generate_ipfs_config "$config_dir" "$user"
+  fi
+ 
+  generate_systemd_config "$config_dir" "$user" "$SYSTEMD_CONFIG_PATH"
+  init_ipfs "$config_dir" "$user"
+  start_ipfs 
+}
+
+run "$@"

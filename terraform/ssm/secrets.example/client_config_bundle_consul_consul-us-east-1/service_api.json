@@ -1,0 +1,12 @@
+{
+    "service": {
+        "name": "ipfs-api",
+        "port": 5001,
+        "token":"",
+        "check": {
+            "id": "api-check",
+            "tcp": "localhost:5001",
+            "interval": "10s"
+        }
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "service": {
+        "name": "ipfs-webui",
+        "port": 5001,
+        "token":"",
+        "check": {
+            "id": "webui-check",
+            "http": "http://localhost:5001/webui",
+            "interval": "15s"
+        }
+    }
+}

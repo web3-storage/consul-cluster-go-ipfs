@@ -1,0 +1,19 @@
+---
+# playbook.yml
+- name: 'Provision Machine'
+  hosts: default
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    # ansible_shell_allow_world_readable_temp: true
+  pre_tasks:
+    - name: Install python for Ansible
+      become: yes
+      raw: test -e /usr/bin/python3 || (apt -y update && apt install -y python3)
+      changed_when: False
+    - name: Install acl for Ansible
+      become: yes
+      raw: apt -y install acl
+      changed_when: False
+  roles:
+    - ansible-ipfs

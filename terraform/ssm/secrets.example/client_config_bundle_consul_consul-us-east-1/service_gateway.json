@@ -1,0 +1,12 @@
+{
+    "service": {
+        "name": "ipfs-gateway",
+        "port": 8080,
+        "token":"",
+        "check": {
+            "id": "gateway-check",
+            "tcp": "localhost:8080",
+            "interval": "10s"
+        }
+    }
+}

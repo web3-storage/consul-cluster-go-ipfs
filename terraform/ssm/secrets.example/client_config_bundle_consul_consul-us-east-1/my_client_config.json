@@ -1,0 +1,23 @@
+{
+    "acl": {
+        "enabled": true,
+        "down_policy": "async-cache",
+        "default_policy": "deny"
+    },
+    "ca_file": "/opt/consul/config/ca.pem",
+    "verify_outgoing": true,
+    "datacenter": "consul-us-east-1",
+    "encrypt": "",
+    "encrypt_verify_incoming": true,
+    "encrypt_verify_outgoing": true,
+    "server": false,
+    "log_level": "INFO",
+    "ui": true,
+    "retry_join": [
+        ""
+    ],
+    "auto_encrypt": {
+        "tls": true
+    },
+    "enable_local_script_checks": true
+}
