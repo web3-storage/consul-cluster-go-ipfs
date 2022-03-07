@@ -100,7 +100,7 @@ Some test description about the image being published to HCP Packer Registry.
     pause_before = "30s"
   }
   provisioner "shell-local" {
-    command = "tar -cf files/node-helper.tar ./../node-helper --exclude node_modules"
+    command = "rm files/node-helper.tar && cd ../node-helper && tar -cf ../packer/files/node-helper.tar --exclude node_modules ."
   }
   provisioner "file" {
     source      = "./files"
@@ -110,7 +110,8 @@ Some test description about the image being published to HCP Packer Registry.
     inline = [
       "mkdir -p /opt/node-helper",
       "cd /tmp && tar xf files/node-helper.tar -C /opt/node-helper",
-      "rm files/node-helper.tar"
+      "rm files/node-helper.tar",
+      "cd /opt/node-helper && npm i"
     ]
     execute_command = "sudo -S sh -c '{{ .Vars }} {{ .Path }}'"
   }
