@@ -111,7 +111,8 @@ Some test description about the image being published to HCP Packer Registry.
       "mkdir -p /opt/node-helper",
       "cd /tmp && tar xf files/node-helper.tar -C /opt/node-helper",
       "rm files/node-helper.tar",
-      "cd /opt/node-helper && npm i"
+      "cd /opt/node-helper && npm install",
+      "npm run build"
     ]
     execute_command = "sudo -S sh -c '{{ .Vars }} {{ .Path }}'"
   }
