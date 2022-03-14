@@ -103,3 +103,31 @@ output "node_security_group_name" {
   value       = module.node.security_group_name
   description = "EC2 instance Security Group name"
 }
+
+# add the useful EC2 metadata to Consul KV for easy lookup later
+resource "consul_keys" "node" {
+  key {
+    path  = "nodes/${module.node.id}/public_ip"
+    value = "${module.node.public_ip}"
+  }
+  key {
+    path  = "nodes/${module.node.id}/public_dns"
+    value = "${module.node.public_dns}"
+  }
+  key {
+    path  = "nodes/${module.node.id}/private_ip"
+    value = "${module.node.private_ip}"
+  }
+  key {
+    path  = "nodes/${module.node.id}/private_dns"
+    value = "${module.node.private_dns}"
+  }
+  key {
+    path  = "nodes/${module.node.id}/arn"
+    value = "${module.node.arn}"
+  }
+  key {
+    path  = "nodes/${module.node.id}/name"
+    value = "${module.node.name}"
+  }
+}

@@ -31,3 +31,19 @@ variable "security_group_rules" {
     To get more info see https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group_rule .
   EOT
 }
+
+variable "consul_datacenters" {
+  type        = map(string)
+  description = "Consul datacenters per region"
+}
+
+variable "consul_addresses" {
+  type        = map(string)
+  description = "Consul provider endpoints (public for development) per region"
+}
+
+variable "consul_tokens" {
+  type        = map(string)
+  description = "Consul access token per region"
+  sensitive = true
+}

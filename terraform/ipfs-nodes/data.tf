@@ -2,6 +2,12 @@ provider "aws" {
   region = var.region
 }
 
+provider "consul" {
+  datacenter = "${lookup(var.consul_datacenters, var.region)}"
+  address = "${lookup(var.consul_addresses, local.region)}"
+  token = "${lookup(var.consul_tokens, local.region)}"
+}
+
 locals {
   account_id       = data.aws_caller_identity.current.account_id
   region           = data.aws_region.current.name

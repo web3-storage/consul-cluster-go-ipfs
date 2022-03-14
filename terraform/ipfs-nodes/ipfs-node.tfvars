@@ -54,3 +54,13 @@ security_group_rules = [
 
 # absolute path
 ssh_public_key_path = "./secrets"
+
+# consul config
+consul_datacenters = {
+  "us-west-2" : "consul-us-west-2",
+  "consul-us-east-1" : "consul-us-east-1"
+}
+consul_addresses   = {
+  "us-west-2" : "https://consul-us-west-2.consul.68ea4544-ab68-47d8-829e-90116be924d5.aws.hashicorp.cloud",
+  "us-east-1" : "https://consul-us-east-1.consul.68ea4544-ab68-47d8-829e-90116be924d5.aws.hashicorp.cloud"
+}
