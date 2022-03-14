@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script is used to configure and run go-ipfs on an AWS server.
+# This script is used to configure and run ipfs node-helper
 
 set -e
 
@@ -55,7 +55,7 @@ function assert_is_installed {
 }
 
 function generate_systemd_config {
-  local -r user="${2}"
+  local -r user="${1}"
   local -r systemd_config_path="${2}"
 
   log_info "Creating systemd config file to run ipfs nodejs helper in $systemd_config_path"
