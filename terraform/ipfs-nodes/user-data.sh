@@ -23,3 +23,6 @@ sudo /opt/consul/bin/run-consul --client
 # start ipfs service
 sudo chown -R ipfs:ipfs /opt/ipfs
 sudo /opt/ipfs/bin/run-ipfs
+
+# start node helper service
+sudo /opt/node-helper/run-node-helper --user ipfs
