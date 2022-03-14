@@ -1,0 +1,140 @@
+#!/bin/bash
+# This script is used to configure and run go-ipfs on an AWS server.
+
+set -e
+
+readonly SYSTEMD_CONFIG_PATH="/etc/systemd/system/ipfshelper.service"
+readonly DEFAULT_USER="ipfs"
+readonly SCRIPT_NAME="$(basename "$0")"
+
+function print_usage {
+  echo
+  echo "..."
+}
+
+function log {
+  local -r level="$1"
+  local -r message="$2"
+  local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  >&2 echo -e "${timestamp} [${level}] [$SCRIPT_NAME] ${message}"
+}
+
+function log_info {
+  local -r message="$1"
+  log "INFO" "$message"
+}
+
+function log_warn {
+  local -r message="$1"
+  log "WARN" "$message"
+}
+
+function log_error {
+  local -r message="$1"
+  log "ERROR" "$message"
+}
+
+function assert_not_empty {
+  local -r arg_name="$1"
+  local -r arg_value="$2"
+
+  if [[ -z "$arg_value" ]]; then
+    log_error "The value for '$arg_name' cannot be empty"
+    print_usage
+    exit 1
+  fi
+}
+
+function assert_is_installed {
+  local -r name="$1"
+
+  if [[ ! $(command -v ${name}) ]]; then
+    log_error "The binary '$name' is required by this script but is not installed or in the system's PATH."
+    exit 1
+  fi
+}
+
+function generate_systemd_config {
+  local -r user="${2}"
+  local -r systemd_config_path="${2}"
+
+  log_info "Creating systemd config file to run ipfs nodejs helper in $systemd_config_path"
+
+  local -r unit_config=$(cat <<EOF
+[Unit]
+Description=IPFS nodejs helper
+After=network.target
+
+EOF
+)
+
+  local -r service_config=$(cat <<EOF
+[Service]
+Environment=NODE_PORT=3000
+Type=simple
+ExecStart=npm start
+Restart=on-failure
+User=$user
+EOF
+)
+
+  local -r install_config=$(cat <<EOF
+[Install]
+WantedBy=multi-user.target
+EOF
+)
+
+  echo -e "$unit_config" > "$systemd_config_path"
+  echo -e "$service_config" >> "$systemd_config_path"
+  echo -e "$install_config" >> "$systemd_config_path"
+}
+
+function start_ipfs_helper {
+  log_info "Reloading systemd config and starting nodejs helper"
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable ipfshelper.service
+  sudo systemctl restart ipfshelper.service
+}
+
+# Based on: http://unix.stackexchange.com/a/7732/215969
+function get_owner_of_path {
+  local -r path="$1"
+  ls -ld "$path" | awk '{print $3}'
+}
+
+function run {
+  local user="$DEFAULT_USER"
+
+  while [[ $# -gt 0 ]]; do
+    local key="$1"
+
+    case "$key" in
+      --user)
+        assert_not_empty "$key" "$2"
+        user="$2"
+        shift
+        ;;
+      --help)
+        print_usage
+        exit
+        ;;
+      *)
+        log_error "Unrecognized argument: $key"
+        print_usage
+        exit 1
+        ;;
+    esac
+
+    shift
+  done
+
+  if [[ -z "$user" ]]; then
+    user=$(get_owner_of_path "$config_dir")
+  fi
+
+  generate_systemd_config "$user" "$SYSTEMD_CONFIG_PATH"
+  start_ipfs_helper 
+}
+
+run "$@"

@@ -83,6 +83,10 @@ Some test description about the image being published to HCP Packer Registry.
     source      = "./../terraform/modules/run-ipfs"
     destination = "/tmp/run-ipfs"
   }
+  provisioner "file" {
+    source      = "./../terraform/modules/run-node-helper"
+    destination = "/tmp/run-node-helper"
+  }
   provisioner "shell" {
     scripts = [
       "scripts/update-apt.sh",
@@ -112,7 +116,10 @@ Some test description about the image being published to HCP Packer Registry.
       "cd /tmp && tar xf files/node-helper.tar -C /opt/node-helper",
       "rm files/node-helper.tar",
       "cd /opt/node-helper && npm install",
-      "npm run build"
+      "npm run build",
+      "cp /tmp/run-node-helper /opt/node-helper/run-node-helper",
+      "chown -R ipfs:ipfs /opt/node-helper",
+      "chmod a+x /opt/run-node-helper"
     ]
     execute_command = "sudo -S sh -c '{{ .Vars }} {{ .Path }}'"
   }
